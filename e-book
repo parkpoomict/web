@@ -18,6 +18,7 @@
             --bg-gradient: radial-gradient(circle at center, #1b2735 0%, #090a0f 100%);
             --accent-neon: #00f3ff;
             --accent-laser: #ff0055;
+            --accent-warn: #ffcc00;
         }
 
         body {
@@ -43,13 +44,6 @@
         }
 
         .logo-container { display: flex; align-items: center; gap: 15px; }
-        .logo-img {
-            width: 50px; height: 50px; border-radius: 50%;
-            border: 2px solid var(--accent-neon);
-            box-shadow: 0 0 15px rgba(0, 243, 255, 0.3);
-            display: flex; justify-content: center; align-items: center;
-            font-size: 24px; color: var(--accent-neon); background: rgba(0,0,0,0.5);
-        }
         .logo-text { display: flex; flex-direction: column; justify-content: center; }
         .logo-main {
             color: var(--accent-neon); font-weight: 800; font-size: 1.2rem; 
@@ -89,6 +83,7 @@
             display: flex; transform-style: preserve-3d;
             transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
             box-shadow: 0 30px 70px rgba(0,0,0,0.8);
+            will-change: transform; /* Hint for GPU optimization */
         }
         .book.zoomed { transform: scale(1.8); cursor: grab; }
         .book.single-mode .page-slot.left { display: none; }
@@ -130,24 +125,23 @@
         .camera-box.hidden { opacity: 0; pointer-events: none; }
         .cam-feed { width: 100%; height: 100%; transform: scaleX(-1); object-fit: cover; }
 
-        /* --- 2. Advanced Cursor (Laser) --- */
+        /* --- 2. Advanced Cursor --- */
         #cursor {
             position: fixed; width: 0; height: 0; pointer-events: none; z-index: 9999; 
             transform: translate(-50%, -50%); display: none;
             border: 2px solid var(--accent-neon); border-radius: 50%;
-            transition: width 0.2s, height 0.2s, background-color 0.2s, box-shadow 0.2s;
+            transition: width 0.1s, height 0.1s, background-color 0.2s, box-shadow 0.2s, opacity 0.2s; /* Faster transition */
             box-shadow: 0 0 20px var(--accent-neon);
         }
         #cursor.active { width: 40px; height: 40px; }
         
-        /* Laser Mode Style */
-        #cursor.laser {
-            width: 15px; height: 15px;
-            background-color: var(--accent-laser);
-            border: none;
-            box-shadow: 0 0 15px var(--accent-laser), 0 0 30px var(--accent-laser);
+        #cursor.incomplete {
+            border-color: var(--accent-warn);
+            box-shadow: 0 0 10px var(--accent-warn);
+            opacity: 0.4;
+            width: 20px; height: 20px;
         }
-        
+
         #status-msg {
             position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: rgba(0,0,0,0.85); color: white; padding: 25px 50px; border-radius: 20px;
@@ -176,6 +170,10 @@
             .logo-main { font-size: 1rem; }
             .camera-box { width: 120px; height: 90px; bottom: 80px; }
         }
+        .logo-img {
+            width: 60px; height:60px; border-radius: 50%; object-fit: cover; 
+            border: px solid var(--accent-neon); box-shadow: 0 0 0px rgba(0, 243, 255, 0.3);
+        }
     </style>
 </head>
 <body>
@@ -183,11 +181,11 @@
     <canvas id="bg-canvas"></canvas>
 
     <div class="top-bar">
-        <div class="logo-container">
-            <div class="logo-img"><i class="fa-solid fa-vr-cardboard"></i></div>
+      <div class="logo-container">
+            <img src="https://lh5.googleusercontent.com/d/1ooZHCA9cvXUFJGZCC5EjHqVsNtrw05up" alt="Profile Logo" class="logo-img">
             <div class="logo-text">
                 <div class="logo-main">AI & Metaverse Innovation Center</div>
-                <div class="logo-sub">ระบบ E-Book อัจฉริยะควบคุมด้วยท่าทางและเสียง</div>
+                <div class="logo-sub">ศูนย์นวัตกรรมปัญญาประดิษฐ์ โรงเรียนสาธิตเทศบาลวัดเพชรจริก</div>
             </div>
         </div>
 
@@ -237,23 +235,19 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
+        // Polyfill for requestIdleCallback (Fixes lag on Safari/Mobile)
+        window.requestIdleCallback = window.requestIdleCallback || function(cb) { return setTimeout(() => { cb({ timeRemaining: () => 50 }); }, 1); };
+
         // --- 1. Interactive Background Particles ---
         const bgCanvas = document.getElementById('bg-canvas');
         const bgCtx = bgCanvas.getContext('2d');
-        let particles = [];
-        let mouseX = 0, mouseY = 0;
-
+        let particles = []; let mouseX = 0, mouseY = 0;
         function resizeBg() { bgCanvas.width = window.innerWidth; bgCanvas.height = window.innerHeight; }
-        window.addEventListener('resize', resizeBg);
-        resizeBg();
-
+        window.addEventListener('resize', resizeBg); resizeBg();
         class Particle {
             constructor() {
-                this.x = Math.random() * bgCanvas.width;
-                this.y = Math.random() * bgCanvas.height;
-                this.size = Math.random() * 2 + 0.5;
-                this.speedX = Math.random() * 1 - 0.5;
-                this.speedY = Math.random() * 1 - 0.5;
+                this.x = Math.random() * bgCanvas.width; this.y = Math.random() * bgCanvas.height;
+                this.size = Math.random() * 2 + 0.5; this.speedX = Math.random() * 1 - 0.5; this.speedY = Math.random() * 1 - 0.5;
                 this.color = `rgba(0, 243, 255, ${Math.random() * 0.3})`;
             }
             update() {
@@ -265,332 +259,262 @@
                 if(this.x < 0 || this.x > bgCanvas.width) this.speedX *= -1;
                 if(this.y < 0 || this.y > bgCanvas.height) this.speedY *= -1;
             }
-            draw() {
-                bgCtx.fillStyle = this.color;
-                bgCtx.beginPath(); bgCtx.arc(this.x, this.y, this.size, 0, Math.PI*2); bgCtx.fill();
-            }
+            draw() { bgCtx.fillStyle = this.color; bgCtx.beginPath(); bgCtx.arc(this.x, this.y, this.size, 0, Math.PI*2); bgCtx.fill(); }
         }
         function initParticles() { for(let i=0; i<80; i++) particles.push(new Particle()); }
-        function animateParticles() {
-            bgCtx.clearRect(0,0,bgCanvas.width,bgCanvas.height);
-            particles.forEach(p => { p.update(); p.draw(); });
-            requestAnimationFrame(animateParticles);
-        }
+        function animateParticles() { bgCtx.clearRect(0,0,bgCanvas.width,bgCanvas.height); particles.forEach(p => { p.update(); p.draw(); }); requestAnimationFrame(animateParticles); }
         initParticles(); animateParticles();
 
-       // --- 2. Voice Control System (Updated) ---
-        let recognition;
-        let isVoiceOn = false;
-        
+        // --- 2. Voice Control System ---
+        let recognition; let isVoiceOn = false;
         function initVoice() {
-            // เช็คว่า Browser รองรับหรือไม่ (รองรับทั้ง Chrome และมาตรฐานใหม่)
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            
-            if (!SpeechRecognition) { 
-                alert("Browser ของคุณไม่รองรับคำสั่งเสียง\nแนะนำให้ใช้ Google Chrome หรือ Microsoft Edge ครับ"); 
-                return; 
-            }
-
+            if (!SpeechRecognition) { alert("Browser ไม่รองรับระบบเสียง แนะนำ Chrome บน PC/Android ครับ"); return; }
             recognition = new SpeechRecognition();
-            recognition.continuous = true; // ฟังต่อเนื่อง
-            recognition.interimResults = false; // เอาเฉพาะคำที่พูดจบแล้ว
-            recognition.lang = 'en-US'; // ใช้ภาษาอังกฤษ (แม่นยำกว่าสำหรับคำสั่งสั้นๆ)
-
-            recognition.onstart = () => {
-                console.log("Voice Recognition Started");
-            };
-
-            recognition.onend = () => {
-                console.log("Voice Recognition Ended");
-                // ถ้าเปิดโหมดเสียงอยู่แต่ระบบตัดไปเอง ให้ต่อใหม่ (Auto Restart)
-                if(isVoiceOn) recognition.start();
-            };
-
+            recognition.continuous = true; recognition.interimResults = false; 
+            recognition.lang = 'th-TH'; 
+            recognition.onstart = () => { console.log("Mic On (Thai Mode)"); showStatus("รอคำสั่งเสียง...", "fa-ear-listen"); };
+            recognition.onend = () => { if(isVoiceOn) recognition.start(); };
             recognition.onresult = (event) => {
                 const command = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
-                console.log(`Voice Command Received: "${command}"`); // ดูใน Console (F12) ได้
-                
-                // ตัดคำเผื่อมี Noise
-                if(command.includes('next') || command.includes('go') || command.includes('ถัดไป')) nextPage();
-                else if(command.includes('back') || command.includes('previous') || command.includes('ย้อน')) prevPage();
-                else if(command.includes('zoom') || command.includes('sum')) { // บางทีฟัง Zoom เป็น Sum
-                    if(!isZoomed) toggleZoom(); 
-                }
-                else if(command.includes('reset') || command.includes('close') || command.includes('ออก')) { 
-                    if(isZoomed) toggleZoom(); 
-                }
-                
-                showStatus(`Voice: "${command}"`, "fa-microphone");
+                console.log(`ได้ยิน: "${command}"`);
+                resetIdleTimer();
+                if(command.includes('ถัดไป') || command.includes('หน้าต่อไป') || command.includes('next')) nextPage();
+                else if(command.includes('ย้อน') || command.includes('กลับ') || command.includes('back')) prevPage();
+                else if(command.includes('ขยาย') || command.includes('ซูม') || command.includes('ใหญ่')) { if(!isZoomed) toggleZoom(); }
+                else if(command.includes('ออก') || command.includes('ปกติ') || command.includes('รีเซ็ต')) { if(isZoomed) toggleZoom(); }
+                showStatus(`คำสั่ง: "${command}"`, "fa-microphone");
             };
-
             recognition.onerror = (event) => {
-                console.error("Voice Error:", event.error);
-                if(event.error === 'not-allowed') {
-                    alert("กรุณากดอนุญาตให้ใช้ไมโครโฟนที่แถบ Address Bar");
-                    isVoiceOn = false;
-                    document.getElementById('voice-btn').classList.remove('btn-active');
-                }
+                if(event.error === 'not-allowed') { alert("กรุณากดอนุญาตไมค์ที่แถบ Address Bar"); isVoiceOn = false; document.getElementById('voice-btn').classList.remove('btn-active'); }
             };
         }
-
         function toggleVoice() {
-            const btn = document.getElementById('voice-btn');
-            if(!recognition) initVoice();
-            
-            if(!recognition) return; // ถ้า init ไม่ผ่านให้จบเลย
-
-            if(!isVoiceOn) {
-                try {
-                    recognition.start(); 
-                    isVoiceOn = true;
-                    btn.classList.add('btn-active');
-                    btn.innerHTML = '<i class="fa-solid fa-microphone"></i> Voice On';
-                    showStatus("Voice Control ON", "fa-microphone");
-                } catch(e) {
-                    console.error(e);
-                }
-            } else {
-                recognition.stop(); 
-                isVoiceOn = false;
-                btn.classList.remove('btn-active');
-                btn.innerHTML = '<i class="fa-solid fa-microphone-slash"></i> Voice Off';
-                showStatus("Voice Control OFF", "fa-microphone-slash");
-            }
+            const btn = document.getElementById('voice-btn'); if(!recognition) initVoice(); if(!recognition) return;
+            if(!isVoiceOn) { try { recognition.start(); isVoiceOn = true; btn.classList.add('btn-active'); btn.innerHTML = '<i class="fa-solid fa-microphone"></i> Voice On'; } catch(e){} } 
+            else { recognition.stop(); isVoiceOn = false; btn.classList.remove('btn-active'); btn.innerHTML = '<i class="fa-solid fa-microphone-slash"></i> Voice Off'; showStatus("ปิดรับคำสั่งเสียง", "fa-microphone-slash"); }
         }
 
-        // --- 3. Core Reader Logic ---
+        // --- 3. Core Reader Logic (Optimized for No-Lag) ---
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         function playSound() {
             if (audioCtx.state === 'suspended') audioCtx.resume();
             const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
-            o.type='sine'; o.frequency.setValueAtTime(500, audioCtx.currentTime);
-            g.gain.setValueAtTime(0.1, audioCtx.currentTime); 
-            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+0.2);
-            o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+0.2);
+            o.type='sine'; o.frequency.setValueAtTime(500, audioCtx.currentTime); g.gain.setValueAtTime(0.1, audioCtx.currentTime); 
+            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+0.2); o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+0.2);
         }
-
-        const fileInput = document.getElementById('file-input');
-        const book = document.getElementById('book');
-        const slotL = document.getElementById('slot-l');
-        const slotR = document.getElementById('slot-r');
-        const pageNumDisplay = document.getElementById('page-num');
-        const cursor = document.getElementById('cursor');
+        const fileInput = document.getElementById('file-input'); const book = document.getElementById('book');
+        const slotL = document.getElementById('slot-l'); const slotR = document.getElementById('slot-r');
+        const pageNumDisplay = document.getElementById('page-num'); const cursor = document.getElementById('cursor');
         const statusMsg = document.getElementById('status-msg');
-
         let pdfDoc = null, totalPages = 0, currentSpread = 0, maxSpreadIndex = 0;
-        let isBusy = false, isZoomed = false;
-        let lastX = 0, lastY = 0, lastTime = 0;
-        let moveThreshold = 0.4;
+        let isBusy = false, isZoomed = false, lastX = 0, lastY = 0, lastTime = 0, moveThreshold = 0.4;
+        let fistStartTime = 0; let isHoldingFist = false; const ZOOM_HOLD_TIME = 3000;
+        const pageCache = new Map();
 
-        // Variables for Fist Zoom Logic
-        let fistStartTime = 0;
-        let isHoldingFist = false;
-        const ZOOM_HOLD_TIME = 3000; // 3 Seconds
-
-        function toggleSettings() { document.getElementById('settings-panel').classList.toggle('show'); }
-        function updateSettings(val) { moveThreshold = parseFloat(val); document.getElementById('val-sens').innerText = val; }
-
-        fileInput.addEventListener('change', async (e) => {
-            if(!e.target.files[0]) return;
-            const buf = await e.target.files[0].arrayBuffer(); loadPDF(buf);
-        });
-
+        function toggleSettings() { document.getElementById('settings-panel').classList.toggle('show'); resetIdleTimer(); }
+        function updateSettings(val) { moveThreshold = parseFloat(val); document.getElementById('val-sens').innerText = val; resetIdleTimer(); }
+        fileInput.addEventListener('change', async (e) => { if(!e.target.files[0]) return; const buf = await e.target.files[0].arrayBuffer(); loadPDF(buf); resetIdleTimer(); });
+        
         async function loadPDF(data) {
-            try {
-                pdfDoc = await pdfjsLib.getDocument(data).promise;
-                totalPages = pdfDoc.numPages; maxSpreadIndex = Math.floor(totalPages/2);
-                const p = await pdfDoc.getPage(1); const v = p.getViewport({scale:1});
-                const r = v.width/v.height; book.dataset.s = r; book.dataset.d = r*2;
-                currentSpread = 0; render(); showStatus("PDF Loaded", "fa-file-pdf");
+            try { 
+                pdfDoc = await pdfjsLib.getDocument(data).promise; 
+                totalPages = pdfDoc.numPages; 
+                maxSpreadIndex = Math.floor(totalPages/2);
+                pageCache.clear();
+                const p = await pdfDoc.getPage(1); const v = p.getViewport({scale:1}); const r = v.width/v.height; book.dataset.s = r; book.dataset.d = r*2;
+                currentSpread = 0; 
+                render(); 
+                showStatus("PDF Loaded", "fa-file-pdf");
             } catch(e){alert(e.message);}
         }
 
         async function render() {
-            let pL, pR;
-            if(currentSpread===0) {
-                book.classList.add('single-mode'); book.style.aspectRatio = `${book.dataset.s}/1`;
-                pL=-1; pR=1; pageNumDisplay.innerText="COVER";
-            } else {
-                book.classList.remove('single-mode'); book.style.aspectRatio = `${book.dataset.d}/1`;
-                pL=currentSpread*2; pR=currentSpread*2+1;
-                pageNumDisplay.innerText=`${pL}-${pR>totalPages?'':pR}/${totalPages}`;
-            }
-            const draw = async (n, slot) => {
-                slot.innerHTML='';
-                if(n>0 && n<=totalPages) {
-                    const p = await pdfDoc.getPage(n); const v = p.getViewport({scale:2});
-                    const c = document.createElement('canvas'); const cx = c.getContext('2d');
-                    c.width=v.width; c.height=v.height; await p.render({canvasContext:cx, viewport:v}).promise;
-                    slot.appendChild(c);
-                }
+            let pL, pR; if(currentSpread===0) { book.classList.add('single-mode'); book.style.aspectRatio = `${book.dataset.s}/1`; pL=-1; pR=1; pageNumDisplay.innerText="COVER"; } 
+            else { book.classList.remove('single-mode'); book.style.aspectRatio = `${book.dataset.d}/1`; pL=currentSpread*2; pR=currentSpread*2+1; pageNumDisplay.innerText=`${pL}-${pR>totalPages?'':pR}/${totalPages}`; }
+            
+            const draw = async (n, slot) => { 
+                slot.innerHTML=''; 
+                if(n>0 && n<=totalPages) { 
+                    if (pageCache.has(n)) {
+                        slot.appendChild(pageCache.get(n));
+                    } else {
+                        const d = document.createElement('div'); d.className='loader-text'; d.innerText='Loading...'; slot.appendChild(d);
+                        try {
+                            const p = await pdfDoc.getPage(n); 
+                            const v = p.getViewport({scale:2}); 
+                            const c = document.createElement('canvas'); 
+                            const cx = c.getContext('2d'); 
+                            c.width=v.width; c.height=v.height; 
+                            await p.render({canvasContext:cx, viewport:v}).promise; 
+                            pageCache.set(n, c); 
+                            slot.innerHTML=''; slot.appendChild(c);
+                        } catch(e) {}
+                    }
+                } 
             };
             await Promise.all([ pL>0?draw(pL,slotL):slotL.innerHTML='', pR>0?draw(pR,slotR):slotR.innerHTML='' ]);
+            
+            // ** Optimization: Use requestIdleCallback for preloading **
+            // Load pages only when Browser is Idle (Prevents micro-stutter)
+            requestIdleCallback(() => preloadPage(currentSpread*2 + 2));
+            requestIdleCallback(() => preloadPage(currentSpread*2 + 3));
+        }
+
+        async function preloadPage(n) {
+            if (n <= totalPages && !pageCache.has(n)) {
+                try {
+                    const p = await pdfDoc.getPage(n);
+                    const v = p.getViewport({scale:2});
+                    const c = document.createElement('canvas');
+                    const cx = c.getContext('2d');
+                    c.width = v.width; c.height = v.height;
+                    await p.render({canvasContext:cx, viewport:v}).promise;
+                    pageCache.set(n, c);
+                } catch(e) {}
+            }
         }
 
         function toggleZoom() {
-            isZoomed = !isZoomed;
-            const btn = document.getElementById('btn-zoom');
-            if(isZoomed) {
-                book.classList.add('zoomed'); btn.classList.add('active');
-                showStatus("Zoom In (Fist Triggered)", "fa-search-plus");
-            } else {
-                book.classList.remove('zoomed'); book.style.transform=''; btn.classList.remove('active');
-                showStatus("Zoom Out", "fa-search-minus");
-            }
+            isZoomed = !isZoomed; const btn = document.getElementById('btn-zoom');
+            if(isZoomed) { book.classList.add('zoomed'); btn.classList.add('active'); showStatus("Zoom In", "fa-search-plus"); } 
+            else { book.classList.remove('zoomed'); book.style.transform=''; btn.classList.remove('active'); showStatus("Zoom Out", "fa-search-minus"); }
+            resetIdleTimer();
         }
-
-        function panBook(x, y) {
-            if(!isZoomed) return;
-            const cx = window.innerWidth/2, cy = window.innerHeight/2;
-            book.style.transform = `scale(1.8) translate(${(cx-x)*0.8}px, ${(cy-y)*0.8}px)`;
-        }
-
+        function panBook(x, y) { if(!isZoomed) return; const cx = window.innerWidth/2, cy = window.innerHeight/2; book.style.transform = `scale(1.8) translate(${(cx-x)*0.8}px, ${(cy-y)*0.8}px)`; }
         function changePage(dir) {
-            if(isBusy) return;
-            if(dir==='next' && currentSpread<maxSpreadIndex) {
-                isBusy=true; playSound(); book.classList.add('anim-swipe-next');
-                setTimeout(()=>{currentSpread++; render();},250);
-                setTimeout(()=>{book.classList.remove('anim-swipe-next'); isBusy=false;},500);
-            } else if(dir==='prev' && currentSpread>0) {
-                isBusy=true; playSound(); book.classList.add('anim-swipe-prev');
-                setTimeout(()=>{currentSpread--; render();},250);
-                setTimeout(()=>{book.classList.remove('anim-swipe-prev'); isBusy=false;},500);
-            }
+            resetIdleTimer();
+            if(isBusy) return; if(dir==='next' && currentSpread<maxSpreadIndex) { isBusy=true; playSound(); book.classList.add('anim-swipe-next'); setTimeout(()=>{currentSpread++; render();},250); setTimeout(()=>{book.classList.remove('anim-swipe-next'); isBusy=false;},500); } 
+            else if(dir==='prev' && currentSpread>0) { isBusy=true; playSound(); book.classList.add('anim-swipe-prev'); setTimeout(()=>{currentSpread--; render();},250); setTimeout(()=>{book.classList.remove('anim-swipe-prev'); isBusy=false;},500); }
         }
+        function showStatus(t, i) { statusMsg.innerHTML=`<i class="fa-solid ${i}"></i><span>${t}</span>`; statusMsg.classList.add('show'); setTimeout(()=>statusMsg.classList.remove('show'),1500); }
+        window.nextPage = ()=>changePage('next'); window.prevPage = ()=>changePage('prev'); window.toggleCam = ()=>document.getElementById('cam-box').classList.toggle('hidden'); window.toggleFull = ()=>!document.fullscreenElement?document.documentElement.requestFullscreen():document.exitFullscreen();
 
-        function showStatus(t, i) {
-            statusMsg.innerHTML=`<i class="fa-solid ${i}"></i><span>${t}</span>`;
-            statusMsg.classList.add('show'); setTimeout(()=>statusMsg.classList.remove('show'),1500);
-        }
-
-        window.nextPage = ()=>changePage('next');
-        window.prevPage = ()=>changePage('prev');
-        window.toggleCam = ()=>document.getElementById('cam-box').classList.toggle('hidden');
-        window.toggleFull = ()=>!document.fullscreenElement?document.documentElement.requestFullscreen():document.exitFullscreen();
-
-        // --- 4. AI Hand Tracking & FIST Logic ---
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
+        // --- 4. AI Hand Tracking (Optimized with Frame Throttling) ---
+        const video = document.getElementById('video'); const canvas = document.getElementById('canvas'); const ctx = canvas.getContext('2d');
         const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-        hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
+        
+        // Use 'Lite' or balanced settings for speed
+        hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
 
-        // ฟังก์ชั่นเช็คกำมือ (Fist Detection)
-        function checkFist(landmarks) {
+        // Helper: 5 Finger Check
+        function countExtendedFingers(landmarks) {
             const wrist = landmarks[0];
-            // นิ้วที่ต้องเช็ค: ชี้(8), กลาง(12), นาง(16), ก้อย(20)
-            const fingerTips = [8, 12, 16, 20];
-            const fingerPips = [6, 10, 14, 18]; // ข้อต่อนิ้วรองสุดท้าย
-            let curledCount = 0;
-
-            for(let i=0; i<fingerTips.length; i++) {
-                const tip = landmarks[fingerTips[i]];
-                const pip = landmarks[fingerPips[i]];
-                
-                // คำนวณระยะห่างจากข้อมือ
-                const dTip = (tip.x - wrist.x)**2 + (tip.y - wrist.y)**2;
-                const dPip = (pip.x - wrist.x)**2 + (pip.y - wrist.y)**2;
-
-                // ถ้าปลายนิ้วอยู่ใกล้ข้อมือมากกว่าข้อต่อ = งอนิ้ว
-                if(dTip < dPip) curledCount++;
+            const tips = [8, 12, 16, 20];
+            const pips = [6, 10, 14, 18];
+            let count = 0;
+            for(let i=0; i<tips.length; i++) {
+                const dTip = (landmarks[tips[i]].x - wrist.x)**2 + (landmarks[tips[i]].y - wrist.y)**2;
+                const dPip = (landmarks[pips[i]].x - wrist.x)**2 + (landmarks[pips[i]].y - wrist.y)**2;
+                if(dTip > dPip) count++;
             }
-            // ถ้างอ 3 นิ้วขึ้นไป ถือว่ากำมือ
+            const thumbTip = landmarks[4]; const thumbIP = landmarks[3]; const indexMCP = landmarks[5];
+            const dTip = (thumbTip.x - indexMCP.x)**2 + (thumbTip.y - indexMCP.y)**2;
+            const dIP = (thumbIP.x - indexMCP.x)**2 + (thumbIP.y - indexMCP.y)**2;
+            if (dTip > dIP) count++;
+            return count;
+        }
+
+        function checkFist(landmarks) {
+            const wrist = landmarks[0]; const fingerTips = [8, 12, 16, 20]; const fingerPips = [6, 10, 14, 18]; let curledCount = 0;
+            for(let i=0; i<fingerTips.length; i++) { const dTip = (landmarks[fingerTips[i]].x - wrist.x)**2 + (landmarks[fingerTips[i]].y - wrist.y)**2; const dPip = (landmarks[fingerPips[i]].x - wrist.x)**2 + (landmarks[fingerPips[i]].y - wrist.y)**2; if(dTip < dPip) curledCount++; }
             return curledCount >= 3;
         }
 
         hands.onResults((results) => {
             canvas.width = video.videoWidth; canvas.height = video.videoHeight;
             ctx.clearRect(0,0,canvas.width,canvas.height);
-
-            if (results.multiHandLandmarks.length > 0) {
-                const marks = results.multiHandLandmarks[0];
-                drawConnectors(ctx, marks, HAND_CONNECTIONS, {color: '#00f3ff', lineWidth: 2});
-                drawLandmarks(ctx, marks, {color: '#ffffff', lineWidth: 1, radius: 3});
-
-                const idx = marks[8];
-                const rawX = 1 - idx.x; const rawY = idx.y;
-                const x = rawX * window.innerWidth; const y = rawY * window.innerHeight;
-                
-                mouseX = x; mouseY = y; // For particles
-
-                // --- FIST DETECTION LOGIC ---
-                const isFist = checkFist(marks);
-
-                if (isFist) {
-                    if (!isHoldingFist) {
-                        // เริ่มกำมือ
-                        isHoldingFist = true;
-                        fistStartTime = Date.now();
-                    } else {
-                        // กำมือค้างอยู่ -> เช็คเวลา
-                        const elapsed = Date.now() - fistStartTime;
+            let rightHandFound = false;
+            
+            if (results.multiHandLandmarks && results.multiHandedness) {
+                for (let i = 0; i < results.multiHandedness.length; i++) {
+                    const label = results.multiHandedness[i].label;
+                    if (label === 'Left') { 
+                        rightHandFound = true;
+                        resetIdleTimer();
                         
-                        // Visual Feedback: วาดวงกลมโหลดรอบ Cursor
-                        const progress = Math.min(elapsed / ZOOM_HOLD_TIME, 1);
-                        cursor.style.display = 'block';
-                        cursor.style.left = x+'px'; cursor.style.top = y+'px';
-                        cursor.style.width = '50px'; cursor.style.height = '50px';
-                        cursor.style.backgroundColor = 'transparent';
-                        cursor.style.border = '4px solid #ff9900'; // สีส้มตอนรอ
-                        cursor.style.borderRadius = '50%';
+                        const marks = results.multiHandLandmarks[i];
+                        // Reduce drawing complexity to save frames
+                        drawConnectors(ctx, marks, HAND_CONNECTIONS, {color: '#00f3ff', lineWidth: 2});
+                        // drawLandmarks skipped or simplified for speed if needed
+                        drawLandmarks(ctx, marks, {color: '#ffffff', lineWidth: 1, radius: 2});
                         
-                        // วาด Progress Bar บน Cursor (Visual เพิ่มเติม)
-                        cursor.style.borderTopColor = '#fff';
-                        cursor.style.transform = `translate(-50%, -50%) rotate(${progress * 360}deg)`;
+                        const idx = marks[8]; const rawX = 1 - idx.x; const rawY = idx.y; const x = rawX * window.innerWidth; const y = rawY * window.innerHeight;
+                        mouseX = x; mouseY = y;
+                        
+                        const isFist = checkFist(marks);
+                        const isFiveFingers = countExtendedFingers(marks) === 5;
 
-                        if (elapsed > ZOOM_HOLD_TIME) {
-                            // ครบ 3 วินาที
-                            toggleZoom(); 
-                            fistStartTime = Date.now() + 1000; // Reset time + Cooldown 1 วิ กันรัว
+                        if (isFist) {
+                            if (!isHoldingFist) { isHoldingFist = true; fistStartTime = Date.now(); } 
+                            else {
+                                const elapsed = Date.now() - fistStartTime; const progress = Math.min(elapsed / ZOOM_HOLD_TIME, 1);
+                                cursor.style.display = 'block'; cursor.style.left = x+'px'; cursor.style.top = y+'px'; cursor.style.width = '50px'; cursor.style.height = '50px'; cursor.style.backgroundColor = 'transparent'; cursor.style.border = '4px solid #ff9900'; cursor.style.borderRadius = '50%'; cursor.style.borderTopColor = '#fff'; cursor.style.transform = `translate(-50%, -50%) rotate(${progress * 360}deg)`; cursor.classList.remove('incomplete');
+                                if (elapsed > ZOOM_HOLD_TIME) { toggleZoom(); fistStartTime = Date.now() + 1000; cursor.style.borderColor = '#ff0055'; cursor.style.backgroundColor = '#ff0055'; }
+                            }
+                        } else {
+                            isHoldingFist = false; fistStartTime = 0;
+                            cursor.style.display = 'block'; cursor.style.left = x+'px'; cursor.style.top = y+'px'; cursor.style.transform = `translate(-50%, -50%) rotate(0deg)`; 
                             
-                            // เปลี่ยนสีเป็นแดงเพื่อบอกว่า Action แล้ว
-                            cursor.style.borderColor = '#ff0055'; 
-                            cursor.style.backgroundColor = '#ff0055';
+                            if (isFiveFingers) {
+                                cursor.style.border = '2px solid var(--accent-neon)'; cursor.style.backgroundColor = 'white'; cursor.style.width = ''; cursor.style.height = ''; cursor.style.opacity = '1'; cursor.classList.remove('incomplete');
+                                const now = Date.now(); const dt = (now - lastTime)/1000; const dx = rawX - lastX; const speed = Math.sqrt(dx*dx + (rawY-lastY)*(rawY-lastY))/dt;
+                                if (speed > moveThreshold && !isZoomed && !isBusy) { 
+                                    cursor.classList.add('active'); 
+                                    if (dx > 0.05) changePage('next'); 
+                                    else if (dx < -0.05) changePage('prev'); 
+                                } else { cursor.classList.remove('active'); }
+                            } else {
+                                cursor.classList.add('incomplete'); cursor.classList.remove('active'); cursor.style.backgroundColor = 'transparent';
+                            }
+                            if (isZoomed) panBook(x, y); 
+                            lastX = rawX; lastY = rawY; lastTime = Date.now();
                         }
+                        break; 
                     }
-                } else {
-                    // ไม่ได้กำมือ (Reset)
-                    isHoldingFist = false;
-                    fistStartTime = 0;
-                    
-                    // กลับเป็น Cursor ปกติ
-                    cursor.style.transform = `translate(-50%, -50%) rotate(0deg)`;
-                    cursor.style.border = '2px solid var(--accent-neon)';
-                    cursor.style.backgroundColor = 'white';
-                    cursor.style.width = ''; cursor.style.height = ''; // Reset size
-                    
-                    // --- Swipe Logic (ทำงานเฉพาะตอนแบมือ) ---
-                    const now = Date.now();
-                    const dt = (now - lastTime)/1000;
-                    const dx = rawX - lastX;
-                    const speed = Math.sqrt(dx*dx + (rawY-lastY)*(rawY-lastY))/dt;
-                    
-                    cursor.style.display = 'block';
-                    cursor.style.left = x+'px'; cursor.style.top = y+'px';
-
-                    if (speed > moveThreshold && !isZoomed && !isBusy) {
-                        cursor.classList.add('active');
-                        if (dx > 0.05) changePage('next');
-                        else if (dx < -0.05) changePage('prev');
-                    } else {
-                        cursor.classList.remove('active');
-                    }
-                    if (isZoomed) panBook(x, y);
-                    lastX = rawX; lastY = rawY; lastTime = now;
                 }
-
-            } else {
-                cursor.style.display = 'none';
-                isHoldingFist = false; // Reset if hand lost
             }
+            if (!rightHandFound) { cursor.style.display = 'none'; isHoldingFist = false; }
         });
+
+        // --- 5. Manual Frame Throttling Camera Loop ---
+        // This solves the freezing/lagging issue by limiting MediaPipe calls
+        let lastVideoTime = 0;
+        const TARGET_FPS = 30; // 30 FPS is enough for Hand Tracking
+        const FRAME_DELAY = 1000 / TARGET_FPS;
 
         const cam = new Camera(video, {
-            onFrame: async () => { await hands.send({image: video}); },
-            width: 320, height: 240
+            onFrame: async () => {
+                const now = Date.now();
+                // If not enough time has passed, skip this frame
+                if (now - lastVideoTime < FRAME_DELAY) return;
+                lastVideoTime = now;
+                await hands.send({image: video});
+            },
+            width: 320, // Low resolution input for faster processing (Quality comes from Canvas overlay)
+            height: 240
         });
         cam.start();
-    
+
+        // --- 6. Idle Timeout ---
+        let idleTimer;
+        const IDLE_LIMIT = 60000; 
+        function resetIdleTimer() {
+            clearTimeout(idleTimer);
+            idleTimer = setTimeout(() => {
+                if (currentSpread !== 0 && pdfDoc) {
+                    currentSpread = 0; render();
+                    if(isZoomed) { isZoomed = false; book.classList.remove('zoomed'); book.style.transform=''; document.getElementById('btn-zoom').classList.remove('active'); }
+                    showStatus("Auto Reset: Home", "fa-house");
+                }
+            }, IDLE_LIMIT);
+        }
+        window.addEventListener('mousemove', resetIdleTimer);
+        window.addEventListener('mousedown', resetIdleTimer);
+        window.addEventListener('keydown', resetIdleTimer);
+        window.addEventListener('touchstart', resetIdleTimer);
+        resetIdleTimer();
+
     </script>
 </body>
 </html>
